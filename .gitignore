@@ -1,0 +1,54 @@
+# Archivos de Python
+*.pyc
+*.pyo
+__pycache__/
+.DS_Store
+
+# Archivos de Django
+db.sqlite3
+mediafiles_dev_local/
+*.log
+
+# Entornos virtuales
+.venv/
+venv/
+env/
+ENV/
+
+# Archivos de configuración
+.env
+
+# Otros
+*.swp
+*~
+*.bak
+*.tmp
+*.DS_Store
+Thumbs.db
+
+# Migrations
+*/migrations/*.pyc
+*/migrations/__pycache__/
+
+# Media files
+media/*
+!media/.git
+
+# Static files
+static/*
+!static/.git
+
+# Ignore coverage data
+.coverage
+coverage.xml
+
+# Ignore pytest cache
+.pytest_cache/
+
+# Ignore mypy cache
+.mypy_cache/
+
+# Ignore build artifacts
+dist/
+build/
+*.egg-info/
