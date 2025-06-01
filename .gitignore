@@ -26,6 +26,7 @@ ENV/
 *.DS_Store
 Thumbs.db
 
+
 # Migrations
 */migrations/*.pyc
 */migrations/__pycache__/

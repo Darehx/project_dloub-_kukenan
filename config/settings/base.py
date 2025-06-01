@@ -1,17 +1,19 @@
 # config/settings/base.py
-
-from pathlib import Path
 import os
+from pathlib import Path
 from datetime import timedelta
+import json # Importante para DB_OPTIONS
 
-# Idealmente, python-dotenv carga el .env en manage.py, wsgi.py, y asgi.py
-# from dotenv import load_dotenv
-# load_dotenv(Path(__file__).resolve().parent.parent.parent / '.env') # Asegura que la ruta al .env sea correcta
+# BASE_DIR apunta al directorio raíz del proyecto (dloub_platform)
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent # Raíz del proyecto (donde está manage.py)
+# SECRET_KEY, DEBUG, ALLOWED_HOSTS, DATABASES se definirán completamente en
+# development.py o production.py leyendo de os.environ.
+# Aquí solo ponemos placeholders o lógica común.
 
-# SECRET_KEY y DEBUG se definirán en development.py o production.py
-# ALLOWED_HOSTS también
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY_BASE', 'placeholder-secret-key-base') # Fallback muy genérico
+DEBUG = False # Por defecto, DEBUG es False. Se activa en development.py
+ALLOWED_HOSTS = [] # Se llena en development.py o production.py
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -24,34 +26,33 @@ INSTALLED_APPS = [
     # Terceros
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist', # Para JWT_BLACKLIST_AFTER_ROTATION
     'django_filters',
     'corsheaders',
     'django_countries',
-    'storages',    # Para django-storages (Azure, S3, etc.)
+    'storages',
 
-    # Mis Apps 
+    # Mis Apps (Asegúrate que los nombres de AppConfig sean correctos)
     'src.core.apps.CoreConfig',
+    'src.ds_owari.apps.DsOwariConfig',
     'src.modules.crm.apps.CrmConfig',
-    'src.modules.finances.apps.FinancesConfig', 
-    'src.modules.project_management.apps.ProjectManagementConfig', # Ejemplo
-    'src.ds_owari.apps.DsOwariConfig', # Ejemplo
-    #'src.shared_utils.apps.SharedUtilsConfig', # Si la tienes como app
-
-    # drf_spectacular o drf_yasg para documentación API (opcional pero recomendado)
-    # 'drf_spectacular',
+    'src.modules.dashboard_module.apps.DashboardModuleConfig',
+    'src.modules.finances.apps.FinancesConfig',
+    'src.modules.project_management.apps.ProjectManagementConfig',
+    # 'src.modules.service_catalog_management.apps.ServiceCatalogManagementConfig', # Descomenta si existe
+    # 'src.shared_utils.apps.SharedUtilsConfig', # Descomenta si existe
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware', # Debe ir antes de CommonMiddleware usualmente
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf_ViewMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'src.core.middlewares.CurrentUserMiddleware', # Middleware para obtener el usuario actual
-    
+    'src.core.middlewares.CurrentUserMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -59,7 +60,7 @@ ROOT_URLCONF = 'config.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates'], # Si tienes plantillas a nivel de proyecto
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -73,60 +74,45 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'config.wsgi.application'
-ASGI_APPLICATION = 'config.asgi.application' # Si usas canales o ASGI
+ASGI_APPLICATION = 'config.asgi.application'
 
-# Database (Placeholder, se define en development.py y production.py)
+# Database (Placeholder - La configuración real estará en development.py/production.py)
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db_placeholder.sqlite3',
+        'NAME': BASE_DIR / 'db_placeholder_never_used.sqlite3', # Para que Django no se queje
     }
 }
 
 AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-# Custom User Model
-AUTH_USER_MODEL = 'core.CustomUser'  # 'core' aquí se refiere al 'label' de CoreConfig
+AUTH_USER_MODEL = 'core.CustomUser' # 'core' es el label de CoreConfig
 
-# Internacionalización
-LANGUAGE_CODE = os.environ.get('DJANGO_LANGUAGE_CODE', 'es-es') # ej. 'es-es', 'en-us'
+LANGUAGE_CODE = os.environ.get('DJANGO_LANGUAGE_CODE', 'es') # Cambiado default a 'es'
 TIME_ZONE = os.environ.get('DJANGO_TIME_ZONE', 'UTC')
 USE_I18N = True
-USE_TZ = True # Muy recomendado para manejo de fechas y horas
+USE_TZ = True
 
-# Static files (CSS, JavaScript, Images)
 STATIC_URL = 'static/'
-# STATIC_ROOT se define en production.py
-# STATICFILES_DIRS = [BASE_DIR / "static_global"] # Si tienes estáticos globales fuera de apps
+# STATIC_ROOT se define en production.py (para collectstatic)
+# STATICFILES_DIRS = [BASE_DIR / "global_static"] # Si tienes estáticos globales
 
-# Media files (Archivos subidos por los usuarios)
 MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / os.environ.get('DJANGO_MEDIA_ROOT_BASE', 'mediafiles_base_placeholder')
-# MEDIA_ROOT se sobreescribe en development.py y production.py
+# MEDIA_ROOT se define en development.py y production.py
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Django REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-        # 'rest_framework.authentication.SessionAuthentication', # Para el Browsable API si es necesario
     ),
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated', # Default a requerir autenticación
+        'rest_framework.permissions.IsAuthenticated',
     ],
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',
@@ -134,139 +120,69 @@ REST_FRAMEWORK = {
         'rest_framework.filters.OrderingFilter',
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': int(os.environ.get('DJANGO_PAGE_SIZE', 25)),
-    'DEFAULT_RENDERER_CLASSES': ( # Asegurar JSON como default primario
+    'PAGE_SIZE': int(os.environ.get('DJANGO_PAGE_SIZE', 20)), # Default a 20 si no está en .env
+    'DEFAULT_RENDERER_CLASSES': (
         'rest_framework.renderers.JSONRenderer',
-        # 'rest_framework.renderers.BrowsableAPIRenderer', # Se añade en development.py
+        # BrowsableAPIRenderer se añadirá condicionalmente en development.py
     ),
-    # 'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema', # Para drf-spectacular
 }
 
-# Simple JWT
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=int(os.environ.get('JWT_ACCESS_TOKEN_LIFETIME_MINUTES', 60))),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=int(os.environ.get('JWT_REFRESH_TOKEN_LIFETIME_DAYS', 1))),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=int(os.environ.get('JWT_REFRESH_TOKEN_LIFETIME_DAYS', 7))),
     'ROTATE_REFRESH_TOKENS': os.environ.get('JWT_ROTATE_REFRESH_TOKENS', 'True').lower() in ('true', '1', 't'),
     'BLACKLIST_AFTER_ROTATION': os.environ.get('JWT_BLACKLIST_AFTER_ROTATION', 'True').lower() in ('true', '1', 't'),
     'UPDATE_LAST_LOGIN': True,
-
     'ALGORITHM': 'HS256',
-    # 'SIGNING_KEY': SECRET_KEY, # Se define en dev/prod donde SECRET_KEY está disponible
+    'SIGNING_KEY': None, # Se establecerá en dev/prod con la SECRET_KEY del entorno
     'VERIFYING_KEY': None,
     'AUDIENCE': None,
     'ISSUER': None,
     'JWK_URL': None,
     'LEEWAY': 0,
-
     'AUTH_HEADER_TYPES': ('Bearer',),
     'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
-    'USER_ID_FIELD': 'id', # Campo en tu CustomUser model
+    'USER_ID_FIELD': 'id',
     'USER_ID_CLAIM': 'user_id',
     'USER_AUTHENTICATION_RULE': 'rest_framework_simplejwt.authentication.default_user_authentication_rule',
-
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
     'TOKEN_TYPE_CLAIM': 'token_type',
     'TOKEN_USER_CLASS': 'rest_framework_simplejwt.models.TokenUser',
-
     'JTI_CLAIM': 'jti',
-
-    'SLIDING_TOKEN_REFRESH_EXP_CLAIM': 'refresh_exp',
-    'SLIDING_TOKEN_LIFETIME': timedelta(minutes=5), # No relevante si no usas Sliding Tokens
-    'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1), # No relevante si no usas Sliding Tokens
 }
 
-# CORS - Configuración base, se sobreescribe en dev/prod
-# CORS_ALLOWED_ORIGINS = [] # Lista vacía por defecto, se llena en dev/prod
-# CORS_ALLOW_CREDENTIALS = False # False por defecto
+# CORS (valores por defecto, se sobreescriben en dev/prod)
+CORS_ALLOW_CREDENTIALS = False # Default a False
+CORS_ALLOWED_ORIGINS = [] # Se llena desde .env en dev/prod
 
-# Logging
+# Logging (Configuración base más detallada)
+LOGGING_LEVEL_ROOT = os.environ.get('DJANGO_ROOT_LOG_LEVEL', 'INFO')
+LOGGING_LEVEL_DJANGO = os.environ.get('DJANGO_LOG_LEVEL', 'INFO')
+LOGGING_LEVEL_DB_BACKENDS = os.environ.get('DJANGO_DB_BACKENDS_LOG_LEVEL', 'INFO') # Para queries
+LOGGING_LEVEL_SRC = os.environ.get('SRC_LOG_LEVEL', 'INFO') # Para tus apps
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
-        'verbose': {
-            'format': '{levelname} {asctime} {module} P{process:d} T{thread:d} {message}',
-            'style': '{',
-        },
-        'simple': {
-            'format': '{levelname} {asctime} {module} {message}',
-            'style': '{',
-        },
-        'django.server': {
-            '()': 'django.utils.log.ServerFormatter',
-            'format': '[{server_time}] {message}',
-            'style': '{',
-        },
+        'verbose': {'format': '{levelname} {asctime} {name} [{module}:{lineno}] {message}', 'style': '{'},
+        'simple': {'format': '{levelname} {asctime} {name} {message}', 'style': '{'},
+        'django.server': {'()': 'django.utils.log.ServerFormatter', 'format': '[{server_time}] {message}', 'style': '{'},
     },
     'handlers': {
-        'console': {
-            'level': 'DEBUG', # El handler puede tener un nivel más bajo que los loggers
-            'class': 'logging.StreamHandler',
-            'formatter': 'simple',
-        },
-        'django.server': {
-            'level': 'INFO',
-            'class': 'logging.StreamHandler',
-            'formatter': 'django.server',
-        },
-        # 'mail_admins': { # Ejemplo para errores en producción
-        #     'level': 'ERROR',
-        #     'class': 'django.utils.log.AdminEmailHandler',
-        #     'formatter': 'simple',
-        # },
-        # 'file_info': { # Ejemplo para loguear a archivo
-        #     'level': 'INFO',
-        #     'class': 'logging.handlers.RotatingFileHandler',
-        #     'filename': BASE_DIR / 'logs/app_info.log',
-        #     'maxBytes': 1024 * 1024 * 5,  # 5 MB
-        #     'backupCount': 5,
-        #     'formatter': 'verbose',
-        # },
+        'console': {'level': 'DEBUG', 'class': 'logging.StreamHandler', 'formatter': 'simple'},
+        'django.server': {'level': 'INFO', 'class': 'logging.StreamHandler', 'formatter': 'django.server'},
     },
-    'root': {
-        'handlers': ['console'],
-        'level': os.environ.get('DJANGO_ROOT_LOG_LEVEL', 'INFO'),
-    },
+    'root': {'handlers': ['console'], 'level': LOGGING_LEVEL_ROOT},
     'loggers': {
-        'django': {
-            'handlers': ['console'], # , 'mail_admins' en prod para errores
-            'level': os.environ.get('DJANGO_LOG_LEVEL', 'INFO'),
-            'propagate': False,
-        },
-        'django.server': {
-            'handlers': ['django.server'],
-            'level': 'INFO',
-            'propagate': False,
-        },
-        'django.request': {
-            'handlers': ['console'], # Cambiar a 'mail_admins' en producción para errores
-            'level': 'ERROR',
-            'propagate': False,
-        },
-        'django.db.backends': {
-            'handlers': ['console'],
-            'level': os.environ.get('DJANGO_DB_BACKENDS_LOG_LEVEL', 'INFO'), # Se ajusta en dev si SQL_DEBUG=True
-            'propagate': False,
-        },
-        # Logger para tus aplicaciones en el directorio 'src'
-        'src': {
-            'handlers': ['console'], # , 'file_info' si quieres loguear src a archivo
-            'level': os.environ.get('SRC_LOG_LEVEL', 'INFO'), # Default a INFO, dev puede ponerlo en DEBUG
-            'propagate': False, # O True si quieres que 'root' también lo procese
-        },
-        # Puedes añadir loggers específicos para tus apps si es necesario
-        # 'src.core': {
-        #     'handlers': ['console'],
-        #     'level': 'DEBUG', # Ejemplo específico
-        #     'propagate': False,
-        # },
+        'django': {'handlers': ['console'], 'level': LOGGING_LEVEL_DJANGO, 'propagate': False},
+        'django.server': {'handlers': ['django.server'], 'level': 'INFO', 'propagate': False},
+        'django.request': {'handlers': ['console'], 'level': 'WARNING', 'propagate': False}, # Loguear errores de request
+        'django.db.backends': {'handlers': ['console'], 'level': LOGGING_LEVEL_DB_BACKENDS, 'propagate': False},
+        'src': {'handlers': ['console'], 'level': LOGGING_LEVEL_SRC, 'propagate': False},
     },
 }
 
-# Azure Storage (valores por defecto o placeholders, se leen de .env en prod/dev)
-# AZURE_ACCOUNT_NAME = os.environ.get('AZURE_ACCOUNT_NAME')
-# AZURE_ACCOUNT_KEY = os.environ.get('AZURE_ACCOUNT_KEY')
-# AZURE_MEDIA_CONTAINER = os.environ.get('AZURE_MEDIA_CONTAINER', 'media')
-# AZURE_STATIC_CONTAINER = os.environ.get('AZURE_STATIC_CONTAINER', 'static')
-# DEFAULT_FILE_STORAGE = os.environ.get('DJANGO_DEFAULT_FILE_STORAGE', 'django.core.files.storage.FileSystemStorage')
-# STATICFILES_STORAGE = os.environ.get('DJANGO_STATICFILES_STORAGE', 'django.contrib.staticfiles.storage.StaticFilesStorage')
+# File Storage (Defaults, se sobreescribe en dev/prod si se usa S3/Azure)
+DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
+STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'

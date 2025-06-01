@@ -1,183 +1,123 @@
 # config/settings/development.py
-
-from .base import *  # Importa todo de base.py
 import os
-import json # Para parsear el JSON de DB_OPTIONS
+import json
+from .base import * # Importa todas las configuraciones base
 
-# Cargar variables de .env si aún no lo han hecho manage.py o wsgi/asgi
-# (esto es opcional y depende de tu flujo, pero puede ser útil para scripts)
-# from dotenv import load_dotenv
-# env_path = BASE_DIR / '.env' # BASE_DIR viene de base.py
-# if env_path.exists():
-#     load_dotenv(dotenv_path=env_path)
-# else:
-#     print(f"ADVERTENCIA: Archivo .env no encontrado en {env_path}")
+# === Development Specific Settings ===
 
-
-# Configuración de Seguridad para Desarrollo
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY_DEV', 'django_unsafe_dev_secret_key_123!@#DONTUSEINPROD')
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY_DEV', 'unsafe-dev-dloub-secret-key_CHANGE_ME_$(*@#!)')
 DEBUG = os.environ.get('DJANGO_DEBUG', 'True').lower() in ('true', '1', 't')
 
-ALLOWED_HOSTS_CSV = os.environ.get('DJANGO_ALLOWED_HOSTS_DEV', 'localhost,127.0.0.1')
-ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_CSV.split(',') if host.strip()]
+ALLOWED_HOSTS_DEV = os.environ.get('DJANGO_ALLOWED_HOSTS_DEV', 'localhost,127.0.0.1')
+ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_DEV.split(',') if host.strip()]
 
+# --- Database Configuration for Development ---
+DB_ENGINE_CHOICE = os.environ.get('DB_ENGINE_CHOICE_DEV', 'sqlite').lower()
 
-# Configuración de Base de Datos para Desarrollo
-DATABASES = {
-    'default': {
-        'ENGINE': os.environ.get('DB_ENGINE_DEV', 'django.db.backends.sqlite3'),
-        'NAME': os.environ.get('DB_NAME_DEV', str(BASE_DIR / 'db_dev.sqlite3')), # Default a SQLite
-        'USER': os.environ.get('DB_USER_DEV'),
-        'PASSWORD': os.environ.get('DB_PASSWORD_DEV'),
-        'HOST': os.environ.get('DB_HOST_DEV'),
-        'PORT': os.environ.get('DB_PORT_DEV'),
-            'OPTIONS': {},
+if DB_ENGINE_CHOICE == 'sqlite':
+    SQLITE_DB_NAME = os.environ.get('DB_SQLITE_NAME_DEV', 'dloub_platform_dev.sqlite3')
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / SQLITE_DB_NAME,
+        }
     }
-}
-
-db_options_dev_json_str = os.environ.get('DB_OPTIONS_DEV_JSON')
-if db_options_dev_json_str:
+    print(f"INFO (settings): Using SQLite database: {DATABASES['default']['NAME']}")
+elif DB_ENGINE_CHOICE == 'mssql':
+    db_options_json = os.environ.get('DB_OPTIONS_MSSQL_DEV_JSON', '{}')
     try:
-        db_options_from_env = json.loads(db_options_dev_json_str)
-        DATABASES['default']['OPTIONS'].update(db_options_from_env)
+        db_options = json.loads(db_options_json)
     except json.JSONDecodeError:
-        print(f"ADVERTENCIA: DB_OPTIONS_DEV_JSON ('{db_options_dev_json_str}') no es un JSON válido. Se ignorarán estas opciones.")
+        print(f"ADVERTENCIA (settings): DB_OPTIONS_MSSQL_DEV_JSON no es un JSON válido. Usando opciones por defecto. Valor: {db_options_json}")
+        db_options = {} # O un default seguro para desarrollo
 
-if DATABASES['default']['ENGINE'] == 'django.db.backends.sqlite3':
-    if not os.path.isabs(DATABASES['default']['NAME']):
-        DATABASES['default']['NAME'] = str(BASE_DIR / DATABASES['default']['NAME'])
-    for key_to_remove in ['USER', 'PASSWORD', 'HOST', 'PORT', 'OPTIONS']:
-        DATABASES['default'].pop(key_to_remove, None)
+    DATABASES = {
+        'default': {
+            'ENGINE': 'mssql', # El .env no necesita DB_ENGINE_MSSQL_DEV
+            'NAME': os.environ.get('DB_NAME_MSSQL_DEV'),
+            'USER': os.environ.get('DB_USER_MSSQL_DEV', ''),
+            'PASSWORD': os.environ.get('DB_PASSWORD_MSSQL_DEV', ''),
+            'HOST': os.environ.get('DB_HOST_MSSQL_DEV'),
+            'PORT': os.environ.get('DB_PORT_MSSQL_DEV', ''), # Puerto puede ser string vacío
+            'OPTIONS': db_options,
+        }
+    }
+    # Validar que las variables de MSSQL Dev estén presentes si se elige mssql
+    if not DATABASES['default']['NAME'] or not DATABASES['default']['HOST']:
+        raise ValueError("Para DB_ENGINE_CHOICE_DEV='mssql', DB_NAME_MSSQL_DEV y DB_HOST_MSSQL_DEV deben estar definidos en .env")
+    print(f"INFO (settings): Using MSSQL database: {DATABASES['default']['NAME']} on {DATABASES['default']['HOST']}")
 else:
-    db_default_config = DATABASES['default']
-    for key in ['USER', 'PASSWORD', 'HOST', 'PORT']: # Claves opcionales para algunos motores
-        if key in db_default_config and db_default_config[key] is None: # Si es None explícito del .env
-            del db_default_config[key]
-        elif key in db_default_config and not db_default_config[key] and db_default_config[key] is not None: # Si es cadena vacía
-             # Algunos drivers prefieren que no esté la clave si es vacía, otros lo manejan.
-             # Considera eliminarla si causa problemas: del db_default_config[key]
-             pass # Por ahora, mantenemos cadenas vacías si se especifican así
-    if not db_default_config.get('OPTIONS'):
-        db_default_config.pop('OPTIONS', None)
+    raise ValueError(f"DB_ENGINE_CHOICE_DEV no reconocido: '{DB_ENGINE_CHOICE}'. Opciones: 'sqlite', 'mssql'.")
 
 
-# Simple JWT - Sobreescribir SIGNING_KEY para usar la de desarrollo
-# (base.py no puede acceder a SECRET_KEY directamente porque se define aquí o en production.py)
-SIMPLE_JWT['SIGNING_KEY'] = SECRET_KEY
+# Media files for Development (local storage)
+MEDIA_ROOT_DEV_FOLDER = os.environ.get('DJANGO_MEDIA_ROOT_DEV', 'mediafiles_dev_local')
+MEDIA_ROOT = BASE_DIR / MEDIA_ROOT_DEV_FOLDER
+if not MEDIA_ROOT.exists():
+    MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
 
+# Static files (Development - Django sirve los estáticos)
+#STATICFILES_DIRS = [
+#    BASE_DIR / "static_global", # Si tienes una carpeta global de estáticos
+#]
+# No necesitas STATIC_ROOT en desarrollo si DEBUG=True y usas el servidor de desarrollo de Django
 
-# Configuración de Email para Desarrollo
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-# EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER_DEV', 'dev_user@example.com') # Si es necesario para alguna prueba
-
-# Configuración de CORS para Desarrollo
-CORS_ALLOWED_ORIGINS_CSV = os.environ.get('CORS_ALLOWED_ORIGINS_DEV', 'http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173')
-if CORS_ALLOWED_ORIGINS_CSV:
-    CORS_ALLOWED_ORIGINS = [origin.strip() for origin in CORS_ALLOWED_ORIGINS_CSV.split(',') if origin.strip()]
-else:
-    CORS_ALLOWED_ORIGINS = []
-
+# CORS for Development
+CORS_ALLOWED_ORIGINS_DEV = os.environ.get('CORS_ALLOWED_ORIGINS_DEV', 'http://localhost:3000,http://127.0.0.1:3000')
+CORS_ALLOWED_ORIGINS = [origin.strip() for origin in CORS_ALLOWED_ORIGINS_DEV.split(',') if origin.strip()]
 CORS_ALLOW_CREDENTIALS = os.environ.get('CORS_ALLOW_CREDENTIALS_DEV', 'True').lower() in ('true', '1', 't')
+# CORS_ALLOW_ALL_ORIGINS = True # Descomenta si necesitas permitir todos para dev simple, pero es menos seguro
 
-# Si quieres ser muy permisivo en desarrollo (NO PARA PROD):
-# CORS_ALLOW_ALL_ORIGINS = os.environ.get('CORS_ALLOW_ALL_ORIGINS_DEV', 'False').lower() in ('true', '1', 't')
-# if CORS_ALLOW_ALL_ORIGINS:
-#     CORS_ALLOWED_ORIGINS = [] # Resetear la lista si se permite todo
-#     print("ADVERTENCIA DE SEGURIDAD: CORS_ALLOW_ALL_ORIGINS está activado en desarrollo.")
+# Django REST Framework - Development specific
+REST_FRAMEWORK['DEFAULT_RENDERER_CLASSES'] = (
+    'rest_framework.renderers.JSONRenderer',
+    'rest_framework.renderers.BrowsableAPIRenderer', # Habilitar Browsable API en desarrollo
+)
 
+# Simple JWT - Development specific
+SIMPLE_JWT['SIGNING_KEY'] = SECRET_KEY # Usar la SECRET_KEY de desarrollo
 
-# Media Files para Desarrollo Local
-MEDIA_ROOT = BASE_DIR / os.environ.get('DJANGO_MEDIA_ROOT_DEV', 'mediafiles_development')
-if not os.path.exists(MEDIA_ROOT):
-    os.makedirs(MEDIA_ROOT, exist_ok=True)
+# Logging - Development specific (más verboso)
+SQL_DEBUG = os.environ.get('SQL_DEBUG', 'True').lower() in ('true', '1', 't')
+if SQL_DEBUG:
+    LOGGING['loggers']['django.db.backends']['level'] = 'DEBUG'
+LOGGING['loggers']['src']['level'] = os.environ.get('SRC_LOG_LEVEL', 'DEBUG') # Más verboso para tus apps
 
+# Email - Development (consola o Mailhog/Mailtrap)
+EMAIL_BACKEND_DEFAULT = 'django.core.mail.backends.console.EmailBackend' # Default a consola
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND_DEV', EMAIL_BACKEND_DEFAULT)
+if EMAIL_BACKEND != EMAIL_BACKEND_DEFAULT: # Si se define algo diferente en .env
+    EMAIL_HOST = os.environ.get('EMAIL_HOST_DEV')
+    EMAIL_PORT = int(os.environ.get('EMAIL_PORT_DEV', 25))
+    EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER_DEV')
+    EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD_DEV')
+    EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS_DEV', 'True').lower() in ('true', '1', 't') # Ajusta según tu proveedor
+    DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL_DEV', 'dev-noreply@dloubplatform.com')
 
-# Django REST Framework - Renderers para Desarrollo
-if DEBUG:
-    # Asegurarse de que REST_FRAMEWORK está definido y es un diccionario mutable
-    if 'REST_FRAMEWORK' not in globals() or not isinstance(REST_FRAMEWORK, dict):
-        REST_FRAMEWORK = {} # Inicializar si no existe o no es un dict de base.py
+# Django Debug Toolbar (si la instalas)
+# INSTALLED_APPS.append('debug_toolbar')
+# MIDDLEWARE.insert(0, 'debug_toolbar.middleware.DebugToolbarMiddleware') # O en una posición adecuada
+# INTERNAL_IPS = [host.strip() for host in os.environ.get('INTERNAL_IPS_DEV', '127.0.0.1').split(',') if host.strip()]
 
-    # Obtener renderers actuales o un tuple vacío si no está definido
-    current_renderers = list(REST_FRAMEWORK.get('DEFAULT_RENDERER_CLASSES', ()))
-    
-    # Asegurar JSONRenderer como el primero o default
-    if 'rest_framework.renderers.JSONRenderer' not in current_renderers:
-        current_renderers.insert(0, 'rest_framework.renderers.JSONRenderer')
-    
-    # Añadir BrowsableAPIRenderer si no está presente
-    if 'rest_framework.renderers.BrowsableAPIRenderer' not in current_renderers:
-        current_renderers.append('rest_framework.renderers.BrowsableAPIRenderer')
-    
-    REST_FRAMEWORK['DEFAULT_RENDERER_CLASSES'] = tuple(current_renderers)
-
-    # Opcional: Añadir SessionAuthentication para el Browsable API
-    # current_auth_classes = list(REST_FRAMEWORK.get('DEFAULT_AUTHENTICATION_CLASSES', ()))
-    # if 'rest_framework_simplejwt.authentication.JWTAuthentication' not in current_auth_classes:
-    #     current_auth_classes.insert(0, 'rest_framework_simplejwt.authentication.JWTAuthentication')
-    # if 'rest_framework.authentication.SessionAuthentication' not in current_auth_classes:
-    #     current_auth_classes.append('rest_framework.authentication.SessionAuthentication')
-    # REST_FRAMEWORK['DEFAULT_AUTHENTICATION_CLASSES'] = tuple(current_auth_classes)
-
-
-# Configuración de Logging para Desarrollo
-# LOGGING se hereda de base.py. Aquí ajustamos los niveles para desarrollo.
-if DEBUG:
-    LOGGING['root']['level'] = 'DEBUG'
-    
-    # Asegurar que las claves de logger existen antes de asignarles nivel
-    LOGGING['loggers'].setdefault('src', {})['level'] = 'DEBUG'
-    LOGGING['loggers'].setdefault('django', {})['level'] = 'INFO' # Django general más callado
-    LOGGING['loggers'].setdefault('django.server', {})['level'] = 'DEBUG' # Servidor de desarrollo más verboso
-    LOGGING['loggers'].setdefault('django.request', {})['level'] = 'DEBUG' # Peticiones
-    
-    db_backends_logger = LOGGING['loggers'].setdefault('django.db.backends', {})
-    if os.environ.get('SQL_DEBUG', 'False').lower() in ('true', '1', 't'):
-        db_backends_logger['level'] = 'DEBUG'
-    else:
-        db_backends_logger['level'] = 'INFO'
-
-
-# Django Debug Toolbar (si la instalas para desarrollo)
-# Asegúrate de añadir 'debug_toolbar' a INSTALLED_APPS en base.py o aquí
-# if DEBUG:
-#     try:
-#         import debug_toolbar
-#         if 'debug_toolbar' not in INSTALLED_APPS:
-#             INSTALLED_APPS += ['debug_toolbar']
-#         if 'debug_toolbar.middleware.DebugToolbarMiddleware' not in MIDDLEWARE:
-#             # Insertar después de SessionMiddleware y antes de CommonMiddleware, si es posible
-#             # O simplemente añadirlo. La posición exacta puede variar.
-#             # CommonMiddleware suele ser un buen punto de referencia.
-#             try:
-#                 idx_common = MIDDLEWARE.index('django.middleware.common.CommonMiddleware')
-#                 MIDDLEWARE.insert(idx_common, 'debug_toolbar.middleware.DebugToolbarMiddleware')
-#             except ValueError:
-#                 MIDDLEWARE.append('debug_toolbar.middleware.DebugToolbarMiddleware')
-        
-#         INTERNAL_IPS = [os.environ.get('INTERNAL_IPS_DEV', '127.0.0.1')]
-#         # DEBUG_TOOLBAR_CONFIG = { 'SHOW_TOOLBAR_CALLBACK': lambda request: True } # Para mostrar siempre
-#     except ImportError:
-#         print("ADVERTENCIA: Django Debug Toolbar no está instalada. Para usarla, instálala (`pip install django-debug-toolbar`).")
-
-
-# Mensajes informativos al iniciar en modo desarrollo
-print("========================================================")
+# --- MENSAJES DE ARRANQUE PARA DESARROLLO ---
+print("=" * 50)
 print("🚀 DLOUB+ PLATFORM - DEVELOPMENT SETTINGS LOADED 🚀")
 print(f"🔧 DEBUG Mode: {DEBUG}")
-print(f"🔑 Using Development SECRET_KEY: {'Yes' if SECRET_KEY else 'No (Fallback unsafe key will be used!)'}")
+print(f"🔑 Using Development SECRET_KEY: {'Yes (from .env)' if os.environ.get('DJANGO_SECRET_KEY_DEV') else 'Yes (Default Unsafe)'}")
 print(f"🌐 Allowed Hosts: {ALLOWED_HOSTS}")
-print(f"🔗 CORS Allowed Origins: {CORS_ALLOWED_ORIGINS if CORS_ALLOWED_ORIGINS else 'None (check CORS_ALLOW_ALL_ORIGINS)'}")
-# if CORS_ALLOW_ALL_ORIGINS: print("🚨 CORS_ALLOW_ALL_ORIGINS is TRUE 🚨")
-print("---------------- DB CONFIG -------------------")
-print(f"  Engine: {DATABASES['default'].get('ENGINE')}")
+print(f"🔗 CORS Allowed Origins: {CORS_ALLOWED_ORIGINS}")
+print(f"🔑 CORS Allow Credentials: {CORS_ALLOW_CREDENTIALS}")
+print("-" * 10 + " DB CONFIG " + "-" * 10)
+print(f"  DB Choice (.env): {DB_ENGINE_CHOICE}")
+print(f"  Engine: {DATABASES['default'].get('ENGINE', '').split('.')[-1]}")
 print(f"  Name: {DATABASES['default'].get('NAME')}")
 if DATABASES['default'].get('ENGINE') != 'django.db.backends.sqlite3':
-    print(f"  Host: {DATABASES['default'].get('HOST', 'N/A')}")
-    print(f"  User: {DATABASES['default'].get('USER', 'N/A')}")
-    print(f"  Port: {DATABASES['default'].get('PORT', 'N/A')}")
-    print(f"  Options: {DATABASES['default'].get('OPTIONS', {})}")
+    print(f"  Host: {DATABASES['default'].get('HOST')}")
+    print(f"  User: {DATABASES['default'].get('USER') if DATABASES['default'].get('USER') else '(Trusted Connection)'}")
+    print(f"  Port: {DATABASES['default'].get('PORT')}")
+    print(f"  Options: {DATABASES['default'].get('OPTIONS')}")
 print(f"📂 Media Root: {MEDIA_ROOT}")
-if os.environ.get('SQL_DEBUG', 'False').lower() in ('true', '1', 't'):
-    print("🔍 SQL_DEBUG: Enabled (Database queries will be logged)")
-print("========================================================")
+print(f"🔍 SQL_DEBUG: {'Enabled' if SQL_DEBUG else 'Disabled'} (Log Level: {LOGGING['loggers']['django.db.backends']['level']})")
+print(f"🗣️ Language Code: {LANGUAGE_CODE}")
+print(f"⏰ Time Zone: {TIME_ZONE}")
+print("=" * 50)
